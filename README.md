@@ -1,4 +1,4 @@
-# opencode-crofai
+# @macleodmike/opencode-crofai
 
 An [OpenCode](https://opencode.ai) plugin that adds [CrofAI](https://crof.ai) as a first-class provider.
 
@@ -7,7 +7,7 @@ CrofAI provides cheap access to open-weight LLMs. This plugin dynamically discov
 ## Installation
 
 ```bash
-opencode plugin add opencode-crofai
+opencode plugin add @macleodmike/opencode-crofai
 ```
 
 ## Usage

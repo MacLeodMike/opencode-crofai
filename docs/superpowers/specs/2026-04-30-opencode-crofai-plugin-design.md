@@ -6,16 +6,16 @@ An OpenCode plugin that registers [CrofAI](https://crof.ai) as a first-class pro
 
 ## Distribution
 
-Published as an npm package: **`opencode-crofai`**. Users install with:
+Published as an npm package: **`@macleodmike/opencode-crofai`**. Users install with:
 
 ```
-opencode plugin add opencode-crofai
+opencode plugin add @macleodmike/opencode-crofai
 ```
 
 ## Package Structure
 
 ```
-opencode-crofai/
+@macleodmike/opencode-crofai/
   package.json      — name, version, main entry, devDeps
   index.mjs         — exports CrofaiPlugin
   README.md         — installation and usage
