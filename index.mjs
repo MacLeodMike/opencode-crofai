@@ -10,6 +10,15 @@ const API_BASE = "https://crof.ai/v1";
 const PROVIDER_ID = "crofai";
 
 /**
+ * Safely parse a CrofAI pricing string to a per-Mtok number.
+ * Returns 0 for missing, NaN, or negative values.
+ */
+function parseCost(value) {
+  const n = parseFloat(value);
+  return Number.isFinite(n) && n >= 0 ? n * 1_000_000 : 0;
+}
+
+/**
  * Map a CrofAI API model object to OpenCode's ModelV2 schema.
  * CrofAI returns per-token pricing; OpenCode stores per-Mtok.
  *
@@ -18,15 +27,23 @@ const PROVIDER_ID = "crofai";
  * API response). Accepted values: "low", "medium", "high", or "none"
  * (disables reasoning entirely).
  */
-function mapApiModel(apiModel) {
+export function mapApiModel(apiModel) {
+  if (!apiModel || typeof apiModel !== "object") {
+    throw new TypeError("mapApiModel requires an object");
+  }
+  if (!apiModel.id || typeof apiModel.id !== "string") {
+    throw new TypeError("mapApiModel: model must have a string id");
+  }
+
   const isReasoning = !!(apiModel.reasoning_effort || apiModel.custom_reasoning);
+  const modelId = apiModel.id;
 
   const model = {
-    id: apiModel.id,
+    id: modelId,
     providerID: PROVIDER_ID,
-    name: apiModel.name || apiModel.id,
+    name: apiModel.name || modelId,
     api: {
-      id: apiModel.id,
+      id: modelId,
       url: API_BASE,
       npm: "@ai-sdk/openai-compatible",
     },
@@ -42,16 +59,23 @@ function mapApiModel(apiModel) {
       output: { text: true, audio: false, image: false, video: false, pdf: false },
     },
     cost: {
-      input: parseFloat(apiModel.pricing?.prompt || "0") * 1_000_000,
-      output: parseFloat(apiModel.pricing?.completion || "0") * 1_000_000,
+      input: parseCost(apiModel.pricing?.prompt),
+      output: parseCost(apiModel.pricing?.completion),
       cache: {
-        read: parseFloat(apiModel.pricing?.cache_prompt || "0") * 1_000_000,
+        read: parseCost(apiModel.pricing?.cache_prompt),
         write: 0,
       },
     },
     limit: {
-      context: apiModel.context_length || 128000,
-      output: apiModel.max_completion_tokens || 4096,
+      context:
+        typeof apiModel.context_length === "number" && apiModel.context_length > 0
+          ? apiModel.context_length
+          : 128000,
+      output:
+        typeof apiModel.max_completion_tokens === "number" &&
+        apiModel.max_completion_tokens > 0
+          ? apiModel.max_completion_tokens
+          : 4096,
     },
     status: "active",
     release_date: apiModel.created
