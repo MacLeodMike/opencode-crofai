@@ -27,10 +27,31 @@ export CROFAI_API_KEY="your-api-key-here"
 The plugin uses three OpenCode hooks:
 
 - **`config`** — Registers CrofAI as a provider with `@ai-sdk/openai-compatible` SDK integration
-- **`provider`** — Fetches `https://crof.ai/v1/models` on startup and maps the response (context length, pricing, reasoning support) to OpenCode's model schema
+- **`provider`** — Fetches `https://crof.ai/v1/models` on startup and maps the response (context length, pricing, reasoning capabilities) to OpenCode's model schema
 - **`auth`** — Provides interactive API key entry with automatic `CROFAI_API_KEY` env var fallback
 
 Models are fetched once when the provider loads. If CrofAI adds new models, simply restart OpenCode.
+
+## Thinking / Reasoning Support
+
+Models that support adjustable reasoning effort (e.g., `kimi-k2.6`, `gemma-4-31b-it`) include three variants for controlling thinking depth:
+
+| Variant | Reasoning Effort |
+|---------|-----------------|
+| `low` | Minimal thinking, faster responses |
+| `medium` | Balanced (default) |
+| `high` | Maximum thinking, best reasoning |
+
+Set the variant in your OpenCode agent config:
+
+```yaml
+agent:
+  build:
+    model: crofai/kimi-k2.6
+    variant: high
+```
+
+Models with CrofAI's built-in reasoning (e.g., `qwen3.6-27b`, `kimi-k2.5-lightning`) always reason by default — no variants needed.
 
 ## License
 
