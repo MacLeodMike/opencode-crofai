@@ -29,17 +29,18 @@ const CACHE_FILE = join(getCacheDir(), "crofai-models.json");
 let refreshInProgress = false;
 
 /**
- * Safely parse a CrofAI pricing string to a per-Mtok number.
+ * Safely parse a CrofAI pricing string.
+ * CrofAI already returns per-Mtok values; return as-is.
  * Returns 0 for missing, NaN, or negative values.
  */
 function parseCost(value) {
   const n = parseFloat(value);
-  return Number.isFinite(n) && n >= 0 ? n * 1_000_000 : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 /**
  * Map a CrofAI API model object to OpenCode's ModelV2 schema.
- * CrofAI returns per-token pricing; OpenCode stores per-Mtok.
+ * CrofAI returns pricing as per-Mtok floats (e.g. 0.50 = $0.50/Mtok).
  *
  * CrofAI supports reasoning_effort on reasoning-capable models (indicated
  * by either `reasoning_effort: true` or `custom_reasoning: true` in the

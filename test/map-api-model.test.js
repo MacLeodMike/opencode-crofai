@@ -12,9 +12,9 @@ const reasoningEffortModel = {
   custom_reasoning: false,
   created: 1776737314,
   pricing: {
-    prompt: "0.00000050",
-    completion: "0.00000199",
-    cache_prompt: "0.00000010",
+    prompt: "0.50",
+    completion: "1.99",
+    cache_prompt: "0.10",
   },
 };
 
@@ -26,9 +26,9 @@ const customReasoningModel = {
   custom_reasoning: true,
   created: 1771526845,
   pricing: {
-    prompt: "0.00000035",
-    completion: "0.00000175",
-    cache_prompt: "0.00000007",
+    prompt: "0.35",
+    completion: "1.75",
+    cache_prompt: "0.07",
   },
 };
 
@@ -39,9 +39,9 @@ const nonReasoningModel = {
   max_completion_tokens: 131072,
   created: 1777097940,
   pricing: {
-    prompt: "0.00000040",
-    completion: "0.00000085",
-    cache_prompt: "0.00000008",
+    prompt: "0.40",
+    completion: "0.85",
+    cache_prompt: "0.08",
   },
 };
 
@@ -76,15 +76,12 @@ describe("mapApiModel", () => {
     assert.equal(result.status, "active");
   });
 
-  it("converts per-token pricing to per-Mtok", () => {
+  it("passes through per-Mtok pricing as-is", () => {
     const result = mapApiModel(nonReasoningModel);
 
-    // 0.00000040 * 1_000_000 = 0.4 (use approx due to IEEE 754)
-    assert.ok(Math.abs(result.cost.input - 0.4) < 1e-10);
-    // 0.00000085 * 1_000_000 = 0.85
-    assert.ok(Math.abs(result.cost.output - 0.85) < 1e-10);
-    // 0.00000008 * 1_000_000 = 0.08
-    assert.ok(Math.abs(result.cost.cache.read - 0.08) < 1e-10);
+    assert.equal(result.cost.input, 0.4);
+    assert.equal(result.cost.output, 0.85);
+    assert.equal(result.cost.cache.read, 0.08);
     assert.equal(result.cost.cache.write, 0);
   });
 
