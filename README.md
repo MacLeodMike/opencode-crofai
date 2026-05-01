@@ -7,7 +7,7 @@ CrofAI provides cheap access to open-weight LLMs. This plugin dynamically discov
 ## Installation
 
 ```bash
-opencode plugin add oc-crofai
+opencode plugin oc-crofai
 ```
 
 ## Usage
@@ -27,10 +27,15 @@ export CROFAI_API_KEY="your-api-key-here"
 The plugin uses three OpenCode hooks:
 
 - **`config`** — Registers CrofAI as a provider with `@ai-sdk/openai-compatible` SDK integration
-- **`provider`** — Fetches `https://crof.ai/v1/models` on startup and maps the response (context length, pricing, reasoning capabilities) to OpenCode's model schema
+- **`provider`** — Fetches `https://crof.ai/v1/models` on startup and maps the response (context length, pricing, reasoning capabilities) to OpenCode's model schema. Models are sorted alphabetically and cached to disk for instant startup, with background refresh to keep them current.
 - **`auth`** — Provides interactive API key entry with automatic `CROFAI_API_KEY` env var fallback
 
-Models are fetched once when the provider loads. If CrofAI adds new models, simply restart OpenCode.
+## Features
+
+- **Disk cache with background refresh** — Models load instantly from cache on startup; fresh data is fetched in the background so subsequent calls always see the latest models
+- **1-hour cache TTL** — Stale caches are discarded and re-fetched automatically
+- **10s fetch timeout** — Prevents hangs if the API is unreachable
+- **Model sorting** — Models are sorted alphabetically for consistent ordering in the UI
 
 ## Thinking / Reasoning Support
 
@@ -43,7 +48,7 @@ All reasoning-capable models include four variants for controlling thinking dept
 | `medium` | `"medium"` | Balanced (default) |
 | `high` | `"high"` | Maximum thinking, best reasoning |
 
-Set the variant in your OpenCode agent config:
+To use a variant, set it in your OpenCode agent config:
 
 ```yaml
 agent:
