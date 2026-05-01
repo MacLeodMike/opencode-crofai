@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an OpenCode plugin (`@macleodmike/opencode-crofai`) that registers CrofAI as a first-class provider with dynamic model discovery and interactive API key auth.
+**Goal:** Build an OpenCode plugin (`oc-crofai`) that registers CrofAI as a first-class provider with dynamic model discovery and interactive API key auth.
 
 **Architecture:** Single-file plugin (`index.mjs`) using three OpenCode hooks: `config` (inject provider definition), `provider` (fetch models from `/v1/models` on load), and `auth` (interactive API key entry with env var fallback). Published as an npm package.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@macleodmike/opencode-crofai",
+  "name": "oc-crofai",
   "version": "0.1.0",
   "description": "OpenCode plugin for CrofAI — dynamically discovers available models",
   "type": "module",
@@ -13,9 +13,6 @@
     "LICENSE"
   ],
   "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
   "keywords": ["opencode", "plugin", "crofai", "llm", "provider"],
   "scripts": {
     "test": "node --test"
