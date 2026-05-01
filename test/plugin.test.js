@@ -1,6 +1,16 @@
-import { describe, it, afterEach, mock } from "node:test";
+import { describe, it, before, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { unlink } from "fs/promises";
+import { join } from "path";
+import { homedir } from "os";
 import { CrofaiPlugin } from "../index.mjs";
+
+// Path must match the plugin's cache location
+function getCachePath() {
+  const xdgCache = process.env.XDG_CACHE_HOME;
+  const base = xdgCache || join(homedir(), ".cache");
+  return join(base, "opencode", "crofai-models.json");
+}
 
 describe("CrofaiPlugin", () => {
   it("exports a function", () => {
@@ -113,6 +123,14 @@ describe("auth hook", () => {
 });
 
 describe("provider models hook", () => {
+  // Clear any cached models so mock-based tests start fresh
+  before(async () => {
+    try {
+      await unlink(getCachePath());
+    } catch {
+      // File doesn't exist — fine
+    }
+  });
   afterEach(() => {
     mock.restoreAll();
   });

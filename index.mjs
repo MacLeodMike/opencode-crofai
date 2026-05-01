@@ -3,11 +3,30 @@
  *
  * Registers CrofAI as a first-class provider with:
  * - Dynamic model discovery from /v1/models
+ * - Disk cache for instant startup + background refresh
  * - Interactive API key auth with env var fallback
  */
 
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { join } from "path";
+import { homedir } from "os";
+
 const API_BASE = "https://crof.ai/v1";
 const PROVIDER_ID = "crofai";
+const LOG_PREFIX = "[oc-crofai]";
+
+// Resolve cache directory: $XDG_CACHE_HOME/opencode or ~/.cache/opencode
+function getCacheDir() {
+  const home = homedir();
+  const xdgCache = process.env.XDG_CACHE_HOME;
+  const base = xdgCache || join(home, ".cache");
+  return join(base, "opencode");
+}
+
+const CACHE_FILE = join(getCacheDir(), "crofai-models.json");
+
+// Guards against concurrent background refreshes
+let refreshInProgress = false;
 
 /**
  * Safely parse a CrofAI pricing string to a per-Mtok number.
@@ -101,6 +120,82 @@ export function mapApiModel(apiModel) {
 }
 
 /**
+ * Fetch models from CrofAI's /v1/models API and map them.
+ * Returns null on failure.
+ */
+async function fetchModelsFromAPI() {
+  const response = await fetch(`${API_BASE}/models`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!response.ok) {
+    console.warn(`${LOG_PREFIX} /v1/models returned ${response.status}`);
+    return null;
+  }
+  const body = await response.json();
+  if (!body.data || !Array.isArray(body.data)) {
+    console.warn(`${LOG_PREFIX} Unexpected /v1/models response shape`);
+    return null;
+  }
+  const models = {};
+  for (const apiModel of body.data) {
+    models[apiModel.id] = mapApiModel(apiModel);
+  }
+  return models;
+}
+
+/**
+ * Read cached models from disk. Returns null if cache is missing or corrupt.
+ */
+async function readModelCache() {
+  try {
+    const raw = await readFile(CACHE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.models && typeof parsed.models === "object") {
+      return parsed.models;
+    }
+  } catch {
+    // File doesn't exist or is corrupt — that's fine
+  }
+  return null;
+}
+
+/**
+ * Write mapped models to disk cache.
+ */
+async function writeModelCache(models) {
+  try {
+    await mkdir(getCacheDir(), { recursive: true });
+    await writeFile(
+      CACHE_FILE,
+      JSON.stringify({ fetchedAt: new Date().toISOString(), models }),
+      "utf8",
+    );
+  } catch (err) {
+    console.warn(`${LOG_PREFIX} Failed to write model cache:`, err.message);
+  }
+}
+
+/**
+ * Fire-and-forget: fetch fresh models from API and update the cache.
+ * Used after returning stale cache so the next call sees fresh data.
+ */
+async function refreshModelsInBackground() {
+  if (refreshInProgress) return;
+  refreshInProgress = true;
+  try {
+    const fresh = await fetchModelsFromAPI();
+    if (fresh) {
+      await writeModelCache(fresh);
+      console.log(`${LOG_PREFIX} Background model refresh complete`);
+    }
+  } catch (err) {
+    console.warn(`${LOG_PREFIX} Background refresh failed:`, err.message);
+  } finally {
+    refreshInProgress = false;
+  }
+}
+
+/**
  * OpenCode plugin entry point.
  *
  * @type {import('@opencode-ai/plugin').Plugin}
@@ -119,32 +214,31 @@ export async function CrofaiPlugin() {
       };
     },
 
-    // Dynamically fetch models from CrofAI's /v1/models endpoint
+    // Fetch models with cache-first + background refresh strategy.
+    // If a cached model list exists, return it immediately and refresh
+    // in the background.  If no cache, block on the API call.
     provider: {
       id: PROVIDER_ID,
       models: async () => {
-        try {
-          const response = await fetch(`${API_BASE}/models`, {
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!response.ok) {
-            console.warn(`[opencode-crofai] /v1/models returned ${response.status}`);
-            return {};
-          }
-          const body = await response.json();
-          if (!body.data || !Array.isArray(body.data)) {
-            console.warn("[opencode-crofai] Unexpected /v1/models response shape");
-            return {};
-          }
-          const models = {};
-          for (const apiModel of body.data) {
-            models[apiModel.id] = mapApiModel(apiModel);
-          }
-          return models;
-        } catch (err) {
-          console.warn("[opencode-crofai] Failed to fetch models:", err.message);
-          return {};
+        // Try cache first
+        const cached = await readModelCache();
+        if (cached) {
+          // Return stale cache instantly, refresh in background
+          refreshModelsInBackground();
+          return cached;
         }
+
+        // No cache — fetch from API (this blocks)
+        try {
+          const models = await fetchModelsFromAPI();
+          if (models) {
+            writeModelCache(models); // fire-and-forget
+            return models;
+          }
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} Failed to fetch models:`, err.message);
+        }
+        return {};
       },
     },
 
