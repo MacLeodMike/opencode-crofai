@@ -13,6 +13,10 @@
     "LICENSE"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MacLeodMike/opencode-crofai.git"
+  },
   "keywords": ["opencode", "plugin", "crofai", "llm", "provider"],
   "scripts": {
     "test": "node --test"
