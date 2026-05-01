@@ -13,6 +13,9 @@
     "LICENSE"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": ["opencode", "plugin", "crofai", "llm", "provider"],
   "scripts": {
     "test": "node --test"
