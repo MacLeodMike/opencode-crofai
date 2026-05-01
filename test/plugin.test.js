@@ -188,7 +188,13 @@ describe("provider models hook", () => {
     assert.deepEqual(models, {});
   });
 
+  const isLive = () => process.env.CROFAI_LIVE_TEST === "1";
+
   it("successfully fetches and maps models from live API", async () => {
+    if (!isLive()) {
+      console.warn("  SKIP (set CROFAI_LIVE_TEST=1 to run live API test)");
+      return;
+    }
     const hooks = await CrofaiPlugin();
     const models = await hooks.provider.models();
 
@@ -226,6 +232,10 @@ describe("provider models hook", () => {
   });
 
   it("pricing is per-Mtok (not per-token)", async () => {
+    if (!isLive()) {
+      console.warn("  SKIP (set CROFAI_LIVE_TEST=1 to run live API test)");
+      return;
+    }
     const hooks = await CrofaiPlugin();
     const models = await hooks.provider.models();
 

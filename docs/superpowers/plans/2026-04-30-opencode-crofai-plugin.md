@@ -173,12 +173,12 @@ export async function CrofaiPlugin() {
             headers: { "Content-Type": "application/json" },
           });
           if (!response.ok) {
-            console.warn(`[opencode-crofai] /v1/models returned ${response.status}`);
+            console.warn(`[oc-crofai] /v1/models returned ${response.status}`);
             return {};
           }
           const body = await response.json();
           if (!body.data || !Array.isArray(body.data)) {
-            console.warn("[opencode-crofai] Unexpected /v1/models response shape");
+            console.warn("[oc-crofai] Unexpected /v1/models response shape");
             return {};
           }
           const models = {};
@@ -187,7 +187,7 @@ export async function CrofaiPlugin() {
           }
           return models;
         } catch (err) {
-          console.warn("[opencode-crofai] Failed to fetch models:", err.message);
+          console.warn("[oc-crofai] Failed to fetch models:", err.message);
           return {};
         }
       },

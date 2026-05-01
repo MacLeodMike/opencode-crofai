@@ -118,7 +118,7 @@ describe("mapApiModel", () => {
     const result = mapApiModel(minimalModel);
 
     assert.equal(result.limit.context, 128000);
-    assert.equal(result.limit.output, 4096);
+    assert.equal(result.limit.output, 16384);
   });
 
   it("rejects non-positive limits", () => {
@@ -129,7 +129,7 @@ describe("mapApiModel", () => {
     });
 
     assert.equal(result.limit.context, 128000);
-    assert.equal(result.limit.output, 4096);
+    assert.equal(result.limit.output, 16384);
   });
 
   it("converts created timestamp to ISO date", () => {

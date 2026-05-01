@@ -94,14 +94,12 @@ export function mapApiModel(apiModel) {
         typeof apiModel.max_completion_tokens === "number" &&
         apiModel.max_completion_tokens > 0
           ? apiModel.max_completion_tokens
-          : 4096,
+          : 16384,
     },
     status: "active",
     release_date: apiModel.created
       ? new Date(apiModel.created * 1000).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
-    options: undefined,
-    headers: undefined,
   };
 
   // All reasoning models support adjustable reasoning_effort
@@ -123,9 +121,13 @@ export function mapApiModel(apiModel) {
  * Fetch models from CrofAI's /v1/models API and map them.
  * Returns null on failure.
  */
+const FETCH_TIMEOUT_MS = 10_000;
+const CACHE_TTL_MS = 3_600_000; // 1 hour
+
 async function fetchModelsFromAPI() {
   const response = await fetch(`${API_BASE}/models`, {
     headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!response.ok) {
     console.warn(`${LOG_PREFIX} /v1/models returned ${response.status}`);
@@ -140,7 +142,7 @@ async function fetchModelsFromAPI() {
   for (const apiModel of body.data) {
     models[apiModel.id] = mapApiModel(apiModel);
   }
-  return models;
+  return Object.fromEntries(Object.entries(models).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 /**
@@ -151,7 +153,10 @@ async function readModelCache() {
     const raw = await readFile(CACHE_FILE, "utf8");
     const parsed = JSON.parse(raw);
     if (parsed && parsed.models && typeof parsed.models === "object") {
-      return parsed.models;
+      const age = Date.now() - new Date(parsed.fetchedAt).getTime();
+      if (age < CACHE_TTL_MS) {
+        return parsed.models;
+      }
     }
   } catch {
     // File doesn't exist or is corrupt — that's fine
@@ -248,7 +253,7 @@ export async function CrofaiPlugin() {
       loader: async (getAuth) => {
         const auth = await getAuth();
         if (auth?.type === "api" && auth.key?.trim()) {
-          return { apiKey: auth.key };
+          return { apiKey: auth.key.trim() };
         }
         if (process.env.CROFAI_API_KEY) {
           return { apiKey: process.env.CROFAI_API_KEY };
