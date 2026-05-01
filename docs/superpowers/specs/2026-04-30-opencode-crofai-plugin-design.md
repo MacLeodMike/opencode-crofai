@@ -100,22 +100,17 @@ Registers a provider hook with `id: "crofai"`. The `models` callback fetches `GE
 
 ### Reasoning / Thinking Support
 
-CrofAI models support two distinct reasoning mechanisms, detected from API fields:
+All reasoning-capable models (detected via `reasoning_effort: true` or `custom_reasoning: true`) support CrofAI's `reasoning_effort` parameter with four levels:
 
-**`reasoning_effort: true`** (e.g., kimi-k2.6, gemma-4-31b-it):
-- Supports OpenAI-style adjustable reasoning effort (low/medium/high)
-- Default effort: `"medium"`
-- Three model variants created for user selection:
-  - `low` → `{ reasoning_effort: "low" }`
-  - `medium` → `{ reasoning_effort: "medium" }`
-  - `high` → `{ reasoning_effort: "high" }`
+| Variant | `reasoning_effort` | Effect |
+|---|---|---|
+| `none` | `"none"` | Disables thinking/reasoning — reduces latency and cost |
+| `low` | `"low"` | Minimal thinking budget |
+| `medium` | `"medium"` | Balanced (default) |
+| `high` | `"high"` | Maximum thinking budget for complex problems |
 
-**`custom_reasoning: true`** (e.g., qwen3.6-27b, kimi-k2.5-lightning):
-- Uses CrofAI's built-in reasoning mechanism (no adjustable levels)
-- Marked as reasoning-capable but no variants created
-
-Both types set:
-- `capabilities.interleaved: { field: "reasoning_content" }` for proper thinking token streaming
+Reasoning models also set:
+- `capabilities.interleaved: { field: "reasoning_content" }` for proper thinking token streaming via `delta.reasoning_content`
 
 ### Hook: `auth`
 

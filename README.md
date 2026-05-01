@@ -34,13 +34,14 @@ Models are fetched once when the provider loads. If CrofAI adds new models, simp
 
 ## Thinking / Reasoning Support
 
-Models that support adjustable reasoning effort (e.g., `kimi-k2.6`, `gemma-4-31b-it`) include three variants for controlling thinking depth:
+All reasoning-capable models include four variants for controlling thinking depth:
 
-| Variant | Reasoning Effort |
-|---------|-----------------|
-| `low` | Minimal thinking, faster responses |
-| `medium` | Balanced (default) |
-| `high` | Maximum thinking, best reasoning |
+| Variant | Reasoning Effort | Effect |
+|---------|-----------------|--------|
+| `none` | `"none"` | Disables reasoning — reduces latency and cost |
+| `low` | `"low"` | Minimal thinking, faster responses |
+| `medium` | `"medium"` | Balanced (default) |
+| `high` | `"high"` | Maximum thinking, best reasoning |
 
 Set the variant in your OpenCode agent config:
 
@@ -50,8 +51,6 @@ agent:
     model: crofai/kimi-k2.6
     variant: high
 ```
-
-Models with CrofAI's built-in reasoning (e.g., `qwen3.6-27b`, `kimi-k2.5-lightning`) always reason by default — no variants needed.
 
 ## License
 
