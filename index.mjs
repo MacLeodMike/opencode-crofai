@@ -50,8 +50,8 @@ function mapApiModel(apiModel) {
     release_date: apiModel.created
       ? new Date(apiModel.created * 1000).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
-    options: {},
-    headers: {},
+    options: undefined,
+    headers: undefined,
   };
 }
 
@@ -108,7 +108,7 @@ export async function CrofaiPlugin() {
       provider: PROVIDER_ID,
       loader: async (getAuth) => {
         const auth = await getAuth();
-        if (auth?.type === "api" && auth.key) {
+        if (auth?.type === "api" && auth.key?.trim()) {
           return { apiKey: auth.key };
         }
         if (process.env.CROFAI_API_KEY) {
