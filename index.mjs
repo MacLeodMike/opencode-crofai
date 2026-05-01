@@ -12,11 +12,19 @@ const PROVIDER_ID = "crofai";
 /**
  * Map a CrofAI API model object to OpenCode's ModelV2 schema.
  * CrofAI returns per-token pricing; OpenCode stores per-Mtok.
+ *
+ * Two reasoning mechanisms:
+ * - `reasoning_effort: true` → supports adjustable effort (low/medium/high),
+ *    like OpenAI o-series. Creates variants for each level.
+ * - `custom_reasoning: true` → uses CrofAI's own reasoning mechanism.
+ *    Marked as reasoning-capable but no adjustable levels.
  */
 function mapApiModel(apiModel) {
-  const isReasoning = !!(apiModel.reasoning_effort || apiModel.custom_reasoning);
+  const supportsReasoningEffort = !!apiModel.reasoning_effort;
+  const supportsCustomReasoning = !!apiModel.custom_reasoning;
+  const isReasoning = supportsReasoningEffort || supportsCustomReasoning;
 
-  return {
+  const model = {
     id: apiModel.id,
     providerID: PROVIDER_ID,
     name: apiModel.name || apiModel.id,
@@ -30,7 +38,9 @@ function mapApiModel(apiModel) {
       reasoning: isReasoning,
       attachment: false,
       toolcall: true,
-      interleaved: false,
+      interleaved: isReasoning
+        ? { field: "reasoning_content" }
+        : false,
       input: { text: true, audio: false, image: false, video: false, pdf: false },
       output: { text: true, audio: false, image: false, video: false, pdf: false },
     },
@@ -53,6 +63,18 @@ function mapApiModel(apiModel) {
     options: undefined,
     headers: undefined,
   };
+
+  // Models with reasoning_effort support get adjustable effort levels
+  if (supportsReasoningEffort) {
+    model.options = { reasoning_effort: "medium" };
+    model.variants = {
+      low: { reasoning_effort: "low" },
+      medium: { reasoning_effort: "medium" },
+      high: { reasoning_effort: "high" },
+    };
+  }
+
+  return model;
 }
 
 /**
