@@ -208,7 +208,10 @@ async function refreshModelsInBackground() {
  */
 export async function CrofaiPlugin() {
   return {
-    // Inject provider definition into OpenCode's runtime config
+    // Inject provider definition into OpenCode's runtime config.
+    // Also inject model variants from cache so OpenCode's processing
+    // pipeline preserves them (it uses config-defined variants in its
+    // second pass, not plugin-returned model variants).
     config: async (config) => {
       config.provider = config.provider || {};
       config.provider.crofai = {
@@ -218,6 +221,17 @@ export async function CrofaiPlugin() {
         api: API_BASE,
         env: ["CROFAI_API_KEY"],
       };
+
+      // Inject per-model variants from cache so OpenCode preserves them
+      const cached = await readModelCache();
+      if (cached) {
+        config.provider.crofai.models = {};
+        for (const [id, model] of Object.entries(cached)) {
+          if (model.variants) {
+            config.provider.crofai.models[id] = { variants: model.variants };
+          }
+        }
+      }
     },
 
     // Fetch models with cache-first + background refresh strategy.

@@ -56,6 +56,68 @@ describe("config hook", () => {
     assert.ok(cfg.provider.crofai);
     assert.equal(cfg.provider.crofai.id, "crofai");
   });
+
+  it("injects model variants from cache when available", async () => {
+    // Create a cache file with models that have variants
+    const { mkdir, writeFile, unlink } = await import("fs/promises");
+    const cachePath = getCachePath();
+    const cacheDir = join(cachePath, "..");
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(
+      cachePath,
+      JSON.stringify({
+        fetchedAt: new Date().toISOString(),
+        models: {
+          "model-no-reasoning": {
+            id: "model-no-reasoning",
+            capabilities: { reasoning: false },
+          },
+          "model-with-variants": {
+            id: "model-with-variants",
+            capabilities: { reasoning: true },
+            variants: {
+              low: { reasoning_effort: "low" },
+              high: { reasoning_effort: "high" },
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    try {
+      const hooks = await CrofaiPlugin();
+      const cfg = {};
+      await hooks.config(cfg);
+
+      // Should have provider definition
+      assert.ok(cfg.provider.crofai);
+      // Should have models with variants injected
+      assert.ok(cfg.provider.crofai.models);
+      // Model without variants should NOT be injected
+      assert.equal(
+        cfg.provider.crofai.models["model-no-reasoning"],
+        undefined,
+      );
+      // Model with variants SHOULD be injected
+      assert.deepEqual(
+        cfg.provider.crofai.models["model-with-variants"],
+        {
+          variants: {
+            low: { reasoning_effort: "low" },
+            high: { reasoning_effort: "high" },
+          },
+        },
+      );
+    } finally {
+      // Clean up cache file
+      try {
+        await unlink(cachePath);
+      } catch {
+        // ignore
+      }
+    }
+  });
 });
 
 describe("auth hook", () => {
