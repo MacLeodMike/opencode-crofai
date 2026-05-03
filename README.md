@@ -13,10 +13,16 @@ opencode plugin -g oc-crofai
 ## Removal
 
 ```bash
-opencode plugin -r oc-crofai
-```
+# 1. Remove from OpenCode's config
+vi ~/.config/opencode/opencode.json
+# Remove the oc-crofai entry from the plugins array
 
-This removes the plugin from OpenCode's global plugins. You can also delete the cache file at `~/.cache/opencode/crofai-models.json`.
+# 2. Delete the plugin package
+rm -fr ~/.cache/opencode/packages/oc-crofai@latest/
+
+# 3. Delete the model cache
+rm ~/.cache/opencode/crofai-models.json
+```
 
 ## Usage
 
@@ -53,6 +59,8 @@ The plugin uses three OpenCode hooks:
 Vision-capable models are automatically detected from CrofAI's pricing page, so models with image input are marked accordingly in the model list.
 
 ## Thinking / Reasoning Support
+
+Reasoning variants are injected via the `config` hook, based on [teppyboy/opencode-crofai](https://github.com/teppyboy/opencode-crofai/tree/main)'s approach.
 
 All reasoning-capable models include four variants for controlling thinking depth:
 
