@@ -265,9 +265,35 @@ export async function CrofaiPlugin() {
       if (models) {
         config.provider.crofai.models = {};
         for (const [id, model] of Object.entries(models)) {
-          if (model.variants) {
-            config.provider.crofai.models[id] = { variants: model.variants };
-          }
+          const entry = {
+            id: model.api.id,
+            name: model.name,
+            status: model.status,
+            temperature: model.capabilities.temperature,
+            reasoning: model.capabilities.reasoning,
+            attachment: model.capabilities.attachment,
+            tool_call: model.capabilities.toolcall,
+            modalities: {
+              input: Object.keys(model.capabilities.input).filter((k) => model.capabilities.input[k]),
+              output: Object.keys(model.capabilities.output).filter((k) => model.capabilities.output[k]),
+            },
+            interleaved: model.capabilities.interleaved || undefined,
+            cost: {
+              input: model.cost.input,
+              output: model.cost.output,
+              cache_read: model.cost.cache.read,
+              cache_write: model.cost.cache.write,
+            },
+            limit: model.limit,
+            release_date: model.release_date,
+            provider: {
+              npm: model.api.npm,
+              api: model.api.url,
+            },
+          };
+          if (model.options) entry.options = model.options;
+          if (model.variants) entry.variants = model.variants;
+          config.provider.crofai.models[id] = entry;
         }
       }
     },

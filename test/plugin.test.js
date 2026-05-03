@@ -60,8 +60,7 @@ describe("config hook", () => {
     assert.equal(cfg.provider.crofai.id, "crofai");
   });
 
-  it("injects model variants from cache when available", async () => {
-    const { mkdir, writeFile, unlink, readFile, rename } = await import("fs/promises");
+  it("injects all models from cache with full config data", async () => {
     const cachePath = getCachePath();
     const cacheDir = join(cachePath, "..");
 
@@ -78,7 +77,9 @@ describe("config hook", () => {
     const backupPath = hadExisting ? cachePath + ".bak" : null;
     if (hadExisting && backupPath) await rename(cachePath, backupPath);
 
-    // Write test cache
+    const releaseDate = new Date().toISOString().split("T")[0];
+
+    // Write test cache with realistic mapped model data
     await mkdir(cacheDir, { recursive: true });
     await writeFile(
       cachePath,
@@ -86,17 +87,58 @@ describe("config hook", () => {
         version: 1,
         fetchedAt: new Date().toISOString(),
         models: {
-          "model-no-reasoning": {
-            id: "model-no-reasoning",
-            capabilities: { reasoning: false },
+          "deepseek-v4-pro": {
+            id: "deepseek-v4-pro",
+            providerID: "crofai",
+            name: "DeepSeek: DeepSeek V4 Pro",
+            api: {
+              id: "deepseek-v4-pro",
+              url: "https://crof.ai/v1",
+              npm: "@ai-sdk/openai-compatible",
+            },
+            capabilities: {
+              temperature: true,
+              reasoning: false,
+              attachment: false,
+              toolcall: true,
+              interleaved: false,
+              input: { text: true, audio: false, image: false, video: false, pdf: false },
+              output: { text: true, audio: false, image: false, video: false, pdf: false },
+            },
+            cost: { input: 0.4, output: 0.85, cache: { read: 0.08, write: 0 } },
+            limit: { context: 1000000, output: 131072 },
+            status: "active",
+            release_date: releaseDate,
           },
-          "model-with-variants": {
-            id: "model-with-variants",
-            capabilities: { reasoning: true },
+          "kimi-k2.6": {
+            id: "kimi-k2.6",
+            providerID: "crofai",
+            name: "Kimi K2.6",
+            api: {
+              id: "kimi-k2.6",
+              url: "https://crof.ai/v1",
+              npm: "@ai-sdk/openai-compatible",
+            },
+            capabilities: {
+              temperature: true,
+              reasoning: true,
+              attachment: false,
+              toolcall: true,
+              interleaved: { field: "reasoning_content" },
+              input: { text: true, audio: false, image: false, video: false, pdf: false },
+              output: { text: true, audio: false, image: false, video: false, pdf: false },
+            },
+            cost: { input: 0.5, output: 1.99, cache: { read: 0.1, write: 0 } },
+            limit: { context: 262144, output: 262144 },
+            options: { reasoning_effort: "medium" },
             variants: {
+              none: { reasoning_effort: "none" },
               low: { reasoning_effort: "low" },
+              medium: { reasoning_effort: "medium" },
               high: { reasoning_effort: "high" },
             },
+            status: "active",
+            release_date: releaseDate,
           },
         },
       }),
@@ -108,38 +150,44 @@ describe("config hook", () => {
       const cfg = {};
       await hooks.config(cfg);
 
-      // Should have provider definition
       assert.ok(cfg.provider.crofai);
-      // Should have models with variants injected
       assert.ok(cfg.provider.crofai.models);
-      // Model without variants should NOT be injected
-      assert.equal(
-        cfg.provider.crofai.models["model-no-reasoning"],
-        undefined,
-      );
-      // Model with variants SHOULD be injected
-      assert.deepEqual(
-        cfg.provider.crofai.models["model-with-variants"],
-        {
-          variants: {
-            low: { reasoning_effort: "low" },
-            high: { reasoning_effort: "high" },
-          },
-        },
-      );
-    } finally {
-      // Restore original cache (or delete test cache)
-      try {
-        await unlink(cachePath);
-      } catch {
-        // ignore
+
+      // Non-reasoning model SHOULD be injected with full config data
+      const nonReasoning = cfg.provider.crofai.models["deepseek-v4-pro"];
+      assert.ok(nonReasoning, "non-reasoning model should be injected");
+      assert.equal(nonReasoning.id, "deepseek-v4-pro");
+      assert.equal(nonReasoning.name, "DeepSeek: DeepSeek V4 Pro");
+      assert.equal(nonReasoning.temperature, true);
+      assert.equal(nonReasoning.reasoning, false);
+      assert.equal(nonReasoning.tool_call, true);
+      assert.equal(cfg.provider.crofai.models["deepseek-v4-pro"]?.variants, undefined);
+
+      // Reasoning model SHOULD be injected with variants
+      const reasoning = cfg.provider.crofai.models["kimi-k2.6"];
+      assert.ok(reasoning, "reasoning model should be injected");
+      assert.equal(reasoning.reasoning, true);
+      assert.deepEqual(reasoning.variants, {
+        none: { reasoning_effort: "none" },
+        low: { reasoning_effort: "low" },
+        medium: { reasoning_effort: "medium" },
+        high: { reasoning_effort: "high" },
+      });
+      assert.deepEqual(reasoning.options, { reasoning_effort: "medium" });
+
+      // Both models should have proper provider info
+      for (const id of ["deepseek-v4-pro", "kimi-k2.6"]) {
+        const entry = cfg.provider.crofai.models[id];
+        assert.equal(entry.provider.npm, "@ai-sdk/openai-compatible");
+        assert.equal(entry.provider.api, "https://crof.ai/v1");
+        assert.equal(entry.status, "active");
+        assert.equal(entry.limit.context > 0, true);
+        assert.equal(entry.limit.output > 0, true);
       }
+    } finally {
+      try { await unlink(cachePath); } catch {}
       if (backupPath) {
-        try {
-          await rename(backupPath, cachePath);
-        } catch {
-          // ignore
-        }
+        try { await rename(backupPath, cachePath); } catch {}
       }
     }
   });

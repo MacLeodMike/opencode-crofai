@@ -44,10 +44,16 @@ CrofAI returns **per-Mtok** values (e.g. `0.50` = $0.50/Mtok). `parseCost` passe
 - **Fallback**: If the pricing page fetch fails, vision defaults to `false` for all models.
 - **Cached**: Vision info is stored as part of the model objects in the disk cache.
 
-## Variants (model.cycle)
+## Config Hook: Model Registration
 
-- **Problem**: OpenCode's `dJ()` function returns `{}` for CrofAI models ("kimi" is in the exclusion list, and `@ai-sdk/openai-compatible` has no case in the switch). It also runs a second pass that overwrites `model.variants` with `dJ()` output, **discarding plugin-provided variants**.
-- **Fix**: The `config` hook reads the cache (or falls through to an API fetch on cache miss) and injects `config.provider.crofai.models[id] = { variants }` for every model that has variants. OpenCode's config processing preserves these because it reads `f?.models?.[k]?.variants` (config-defined) and merges them.
+- **Context**: CrofAI is a custom plugin (not in OpenCode's built-in `modelsDev`). OpenCode's plugin model loading path (`provider.ts:1152-1153`) requires the provider to already exist in the database, which fails for custom plugins. The only path models reach OpenCode is through the config hook.
+- **Problem (old)**: The config hook only injected models that had `variants` (reasoning models), so non-reasoning models had zero representation in OpenCode's config processing path and were silently dropped.
+- **Fix**: The config hook injects **all models** into `config.provider.crofai.models` with full config model data (`id`, `name`, `status`, `temperature`, `reasoning`, `tool_call`, `modalities`, `cost`, `limit`, `provider`, etc.). Models with variants also include their `options` and `variants` fields. OpenCode's config processing (`provider.ts:1183-1262`) creates proper database entries from this data, regardless of whether a model has variants.
+
+## Variants
+
+- **Problem**: OpenCode's `ProviderTransform.variants()` returns `{}` for CrofAI models ("kimi" is in the exclusion list at `transform.ts:452`, and `@ai-sdk/openai-compatible` has no case in the switch).
+- **Fix**: Variants are baked into the cache and injected via the config hook's model entries. OpenCode's config processing preserves these because it reads `configProvider?.models?.[modelID]?.variants` and merges them with `mergeDeep`.
 
 ## Testing
 
