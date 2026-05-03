@@ -46,7 +46,7 @@ The plugin uses three OpenCode hooks:
 - **10s fetch timeout** — Prevents hangs if the API is unreachable
 - **Model sorting** — Models are sorted alphabetically for consistent ordering in the UI
 - **Vision detection** — Vision-capable models are automatically detected by scraping CrofAI's pricing page; no hardcoded list to maintain
-- **Variants on first run** — Reasoning variants are available immediately, even on very first startup
+- **Reasoning variants** — All reasoning-capable models include variants for controlling thinking depth (none/low/medium/high)
 
 ## Vision Support
 
