@@ -42,12 +42,15 @@ The plugin uses three OpenCode hooks:
 
 - **Disk cache with background refresh** — Models load instantly from cache on startup; fresh data is fetched in the background so subsequent calls always see the latest models
 - **1-hour cache TTL** — Stale caches are discarded and re-fetched automatically
+- **Cache schema version** — Old cached data from previous plugin versions is automatically discarded
 - **10s fetch timeout** — Prevents hangs if the API is unreachable
 - **Model sorting** — Models are sorted alphabetically for consistent ordering in the UI
+- **Vision detection** — Vision-capable models are automatically detected by scraping CrofAI's pricing page; no hardcoded list to maintain
+- **Variants on first run** — Reasoning variants are available immediately, even on very first startup
 
-## Variant Support
+## Vision Support
 
-Reasoning variants are injected via the `config` hook, based on [teppyboy/opencode-crofai](https://github.com/teppyboy/opencode-crofai/tree/main)'s approach.
+Vision-capable models are automatically detected from CrofAI's pricing page, so models with image input are marked accordingly in the model list.
 
 ## Thinking / Reasoning Support
 
