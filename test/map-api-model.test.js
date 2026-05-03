@@ -221,4 +221,34 @@ describe("mapApiModel", () => {
     const result = mapApiModel({ id: "foo" });
     assert.equal(result.name, "foo");
   });
+
+  it("sets image capabilities for models in the vision set", () => {
+    const visionSet = new Set(["kimi-k2.6", "qwen3.5-397b-a17b"]);
+    const result = mapApiModel(reasoningEffortModel, visionSet);
+
+    assert.equal(result.capabilities.attachment, true);
+    assert.equal(result.capabilities.input.image, true);
+  });
+
+  it("does not set image capabilities for models not in the vision set", () => {
+    const visionSet = new Set(["unrelated-model"]);
+    const result = mapApiModel(reasoningEffortModel, visionSet);
+
+    assert.equal(result.capabilities.attachment, false);
+    assert.equal(result.capabilities.input.image, false);
+  });
+
+  it("handles null visionModels gracefully", () => {
+    const result = mapApiModel(reasoningEffortModel, null);
+
+    assert.equal(result.capabilities.attachment, false);
+    assert.equal(result.capabilities.input.image, false);
+  });
+
+  it("handles undefined visionModels gracefully (backwards compat)", () => {
+    const result = mapApiModel(reasoningEffortModel);
+
+    assert.equal(result.capabilities.attachment, false);
+    assert.equal(result.capabilities.input.image, false);
+  });
 });

@@ -7,8 +7,16 @@ CrofAI provides cheap access to open-weight LLMs. This plugin dynamically discov
 ## Installation
 
 ```bash
-opencode plugin oc-crofai
+opencode plugin -g oc-crofai
 ```
+
+## Removal
+
+```bash
+opencode plugin -r oc-crofai
+```
+
+This removes the plugin from OpenCode's global plugins. You can also delete the cache file at `~/.cache/opencode/crofai-models.json`.
 
 ## Usage
 
@@ -36,6 +44,10 @@ The plugin uses three OpenCode hooks:
 - **1-hour cache TTL** — Stale caches are discarded and re-fetched automatically
 - **10s fetch timeout** — Prevents hangs if the API is unreachable
 - **Model sorting** — Models are sorted alphabetically for consistent ordering in the UI
+
+## Variant Support
+
+Reasoning variants are injected via the `config` hook, based on [teppyboy/opencode-crofai](https://github.com/teppyboy/opencode-crofai/tree/main)'s approach.
 
 ## Thinking / Reasoning Support
 

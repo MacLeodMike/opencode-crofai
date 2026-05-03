@@ -33,15 +33,21 @@ CrofAI returns **per-Mtok** values (e.g. `0.50` = $0.50/Mtok). `parseCost` passe
 ## Cache
 
 - Path: `$XDG_CACHE_HOME/opencode/crofai-models.json` (or `~/.cache/opencode/`), respecting `XDG_CACHE_HOME`
+- Schema version: `CACHE_SCHEMA_VERSION = 1` — written into cache file, checked on read; mismatched versions are discarded so stale caches from older plugin releases don't cause issues
 - 1-hour TTL; background refresh returns stale cache immediately then fetches fresh
 - Guard against concurrent background refreshes (`refreshInProgress` flag)
+
+## Vision Detection
+
+- **Problem**: CrofAI's `/v1/models` API doesn't return a vision flag. The pricing page at `https://crof.ai/pricing` embeds a `const visionModels = [...]` array in its JS.
+- **Fix**: `fetchVisionModels()` scrapes the pricing page HTML with a regex to extract the list, then `mapApiModel(apiModel, visionModels)` checks the Set to set `attachment: true` and `input.image: true`. Fetched in parallel with the models API so it doesn't add latency.
+- **Fallback**: If the pricing page fetch fails, vision defaults to `false` for all models.
+- **Cached**: Vision info is stored as part of the model objects in the disk cache.
 
 ## Variants (model.cycle)
 
 - **Problem**: OpenCode's `dJ()` function returns `{}` for CrofAI models ("kimi" is in the exclusion list, and `@ai-sdk/openai-compatible` has no case in the switch). It also runs a second pass that overwrites `model.variants` with `dJ()` output, **discarding plugin-provided variants**.
-- **Fix**: The `config` hook reads the cache and injects `config.provider.crofai.models[id] = { variants }` for every cached model that has variants. OpenCode's config processing preserves these because it reads `f?.models?.[k]?.variants` (config-defined) and merges them.
-- **First startup**: No cache exists, so no variants are injected on the very first run. They appear on the second startup.
-- Requires a cache hit before variant injection works.
+- **Fix**: The `config` hook reads the cache (or falls through to an API fetch on cache miss) and injects `config.provider.crofai.models[id] = { variants }` for every model that has variants. OpenCode's config processing preserves these because it reads `f?.models?.[k]?.variants` (config-defined) and merges them.
 
 ## Testing
 

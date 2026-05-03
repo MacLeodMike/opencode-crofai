@@ -24,6 +24,7 @@ function getCacheDir() {
 }
 
 const CACHE_FILE = join(getCacheDir(), "crofai-models.json");
+const CACHE_SCHEMA_VERSION = 1;
 
 // Guards against concurrent background refreshes
 let refreshInProgress = false;
@@ -47,7 +48,7 @@ function parseCost(value) {
  * API response). Accepted values: "low", "medium", "high", or "none"
  * (disables reasoning entirely).
  */
-export function mapApiModel(apiModel) {
+export function mapApiModel(apiModel, visionModels) {
   if (!apiModel || typeof apiModel !== "object") {
     throw new TypeError("mapApiModel requires an object");
   }
@@ -57,6 +58,7 @@ export function mapApiModel(apiModel) {
 
   const isReasoning = !!(apiModel.reasoning_effort || apiModel.custom_reasoning);
   const modelId = apiModel.id;
+  const isVision = visionModels?.has?.(modelId) ?? false;
 
   const model = {
     id: modelId,
@@ -70,12 +72,12 @@ export function mapApiModel(apiModel) {
     capabilities: {
       temperature: true,
       reasoning: isReasoning,
-      attachment: false,
+      attachment: isVision,
       toolcall: true,
       interleaved: isReasoning
         ? { field: "reasoning_content" }
         : false,
-      input: { text: true, audio: false, image: false, video: false, pdf: false },
+      input: { text: true, audio: false, image: isVision, video: false, pdf: false },
       output: { text: true, audio: false, image: false, video: false, pdf: false },
     },
     cost: {
@@ -119,6 +121,27 @@ export function mapApiModel(apiModel) {
 }
 
 /**
+ * Parse the list of vision-capable model IDs from the pricing page.
+ * CrofAI doesn't expose vision info in /v1/models, so we scrape it
+ * from the client-side JS on the pricing page instead.
+ * Returns null on failure (safe fallback — vision defaults to false).
+ */
+async function fetchVisionModels() {
+  try {
+    const res = await fetch("https://crof.ai/pricing", {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const match = html.match(/const visionModels\s*=\s*(\[.+?\]);/);
+    if (!match) return null;
+    return new Set(JSON.parse(match[1]));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch models from CrofAI's /v1/models API and map them.
  * Returns null on failure.
  */
@@ -126,6 +149,9 @@ const FETCH_TIMEOUT_MS = 10_000;
 const CACHE_TTL_MS = 3_600_000; // 1 hour
 
 async function fetchModelsFromAPI() {
+  // Kick off vision fetch in parallel — it won't block model fetching
+  const visionPromise = fetchVisionModels();
+
   const response = await fetch(`${API_BASE}/models`, {
     headers: { "Content-Type": "application/json" },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -139,9 +165,12 @@ async function fetchModelsFromAPI() {
     console.warn(`${LOG_PREFIX} Unexpected /v1/models response shape`);
     return null;
   }
+
+  const visionModels = await visionPromise;
+
   const models = {};
   for (const apiModel of body.data) {
-    models[apiModel.id] = mapApiModel(apiModel);
+    models[apiModel.id] = mapApiModel(apiModel, visionModels);
   }
   return Object.fromEntries(Object.entries(models).sort(([a], [b]) => a.localeCompare(b)));
 }
@@ -153,7 +182,7 @@ async function readModelCache() {
   try {
     const raw = await readFile(CACHE_FILE, "utf8");
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.models && typeof parsed.models === "object") {
+    if (parsed && parsed.models && typeof parsed.models === "object" && parsed.version === CACHE_SCHEMA_VERSION) {
       const age = Date.now() - new Date(parsed.fetchedAt).getTime();
       if (age < CACHE_TTL_MS) {
         return parsed.models;
@@ -173,7 +202,7 @@ async function writeModelCache(models) {
     await mkdir(getCacheDir(), { recursive: true });
     await writeFile(
       CACHE_FILE,
-      JSON.stringify({ fetchedAt: new Date().toISOString(), models }),
+      JSON.stringify({ version: CACHE_SCHEMA_VERSION, fetchedAt: new Date().toISOString(), models }),
       "utf8",
     );
   } catch (err) {
@@ -222,11 +251,20 @@ export async function CrofaiPlugin() {
         env: ["CROFAI_API_KEY"],
       };
 
-      // Inject per-model variants from cache so OpenCode preserves them
-      const cached = await readModelCache();
-      if (cached) {
+      // Inject per-model variants from cache so OpenCode preserves them.
+      // Fall through to API fetch on cache miss so variants work on first run.
+      let models = await readModelCache();
+      if (!models) {
+        try {
+          models = await fetchModelsFromAPI();
+          if (models) writeModelCache(models);
+        } catch {
+          // Non-critical — models still work, just no variants on first run
+        }
+      }
+      if (models) {
         config.provider.crofai.models = {};
-        for (const [id, model] of Object.entries(cached)) {
+        for (const [id, model] of Object.entries(models)) {
           if (model.variants) {
             config.provider.crofai.models[id] = { variants: model.variants };
           }

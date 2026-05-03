@@ -1,6 +1,6 @@
 import { describe, it, before, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { unlink } from "fs/promises";
+import { unlink, mkdir, writeFile, readFile, rename } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import { CrofaiPlugin } from "../index.mjs";
@@ -29,18 +29,21 @@ describe("CrofaiPlugin", () => {
 });
 
 describe("config hook", () => {
+  before(async () => {
+    try { await unlink(getCachePath()); } catch { /* no cache to clear */ }
+  });
+
   it("injects the crofai provider definition", async () => {
     const hooks = await CrofaiPlugin();
     const cfg = {};
     await hooks.config(cfg);
 
-    assert.deepEqual(cfg.provider?.crofai, {
-      id: "crofai",
-      name: "CrofAI",
-      npm: "@ai-sdk/openai-compatible",
-      api: "https://crof.ai/v1",
-      env: ["CROFAI_API_KEY"],
-    });
+    const p = cfg.provider?.crofai;
+    assert.equal(p.id, "crofai");
+    assert.equal(p.name, "CrofAI");
+    assert.equal(p.npm, "@ai-sdk/openai-compatible");
+    assert.equal(p.api, "https://crof.ai/v1");
+    assert.deepEqual(p.env, ["CROFAI_API_KEY"]);
   });
 
   it("merges with existing provider configs", async () => {
@@ -58,14 +61,29 @@ describe("config hook", () => {
   });
 
   it("injects model variants from cache when available", async () => {
-    // Create a cache file with models that have variants
-    const { mkdir, writeFile, unlink } = await import("fs/promises");
+    const { mkdir, writeFile, unlink, readFile, rename } = await import("fs/promises");
     const cachePath = getCachePath();
     const cacheDir = join(cachePath, "..");
+
+    // Save existing cache if present
+    let hadExisting = false;
+    let existingData;
+    try {
+      existingData = await readFile(cachePath, "utf8");
+      hadExisting = true;
+    } catch {
+      // No existing cache — fine
+    }
+
+    const backupPath = hadExisting ? cachePath + ".bak" : null;
+    if (hadExisting && backupPath) await rename(cachePath, backupPath);
+
+    // Write test cache
     await mkdir(cacheDir, { recursive: true });
     await writeFile(
       cachePath,
       JSON.stringify({
+        version: 1,
         fetchedAt: new Date().toISOString(),
         models: {
           "model-no-reasoning": {
@@ -110,12 +128,129 @@ describe("config hook", () => {
         },
       );
     } finally {
-      // Clean up cache file
+      // Restore original cache (or delete test cache)
       try {
         await unlink(cachePath);
       } catch {
         // ignore
       }
+      if (backupPath) {
+        try {
+          await rename(backupPath, cachePath);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  it("falls back to API fetch on cache miss", async () => {
+    // Ensure no cache file exists
+    try { await unlink(getCachePath()); } catch { /* ok */ }
+
+    const modelId = "kimi-k2.6";
+    const variantModelId = "qwen3.5-9b";
+
+    mock.method(global, "fetch", (url) => {
+      const u = typeof url === "string" ? url : url.toString();
+      if (u.includes("/pricing")) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(
+            `<script>const visionModels = ["${modelId}"];</script>`,
+          ),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          data: [
+            {
+              id: modelId,
+              name: "Kimi K2.6",
+              context_length: 262144,
+              max_completion_tokens: 262144,
+              custom_reasoning: true,
+              pricing: { prompt: "0.50", completion: "1.99", cache_prompt: "0.10" },
+            },
+            {
+              id: variantModelId,
+              name: "Qwen 3.5 9B",
+              context_length: 262144,
+              max_completion_tokens: 262144,
+              custom_reasoning: true,
+              pricing: { prompt: "0.04", completion: "0.15", cache_prompt: "0.008" },
+            },
+          ],
+        }),
+      });
+    });
+
+    try {
+      const hooks = await CrofaiPlugin();
+      const cfg = {};
+      await hooks.config(cfg);
+
+      const models = cfg.provider.crofai.models;
+      assert.ok(models, "should inject models from API on cache miss");
+      assert.ok(models[modelId], `should include ${modelId}`);
+      assert.ok(models[variantModelId], `should include ${variantModelId}`);
+      // Should inject variants for reasoning models
+      assert.deepEqual(models[modelId].variants, {
+        none: { reasoning_effort: "none" },
+        low: { reasoning_effort: "low" },
+        medium: { reasoning_effort: "medium" },
+        high: { reasoning_effort: "high" },
+      });
+    } finally {
+      mock.restoreAll();
+      try { await unlink(getCachePath()); } catch { /* ok */ }
+    }
+  });
+
+  it("rejects cache with mismatched schema version", async () => {
+    // Write a cache with wrong version
+    const cachePath = getCachePath();
+    const cacheDir = join(cachePath, "..");
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(
+      cachePath,
+      JSON.stringify({
+        version: 999,
+        fetchedAt: new Date().toISOString(),
+        models: { "stale-model": { id: "stale-model" } },
+      }),
+      "utf8",
+    );
+
+    let fetchCalled = false;
+    mock.method(global, "fetch", (url) => {
+      const u = typeof url === "string" ? url : url.toString();
+      if (u.includes("/pricing")) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve("<script></script>"),
+        });
+      }
+      fetchCalled = true;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+    });
+
+    try {
+      const hooks = await CrofaiPlugin();
+      const cfg = {};
+      await hooks.config(cfg);
+
+      // Wrong-version cache should be ignored — fetch should have been called
+      assert.ok(fetchCalled, "should fall through to API fetch when version mismatches");
+      // Stale model should NOT appear
+      assert.equal(cfg.provider.crofai.models?.["stale-model"], undefined);
+    } finally {
+      mock.restoreAll();
+      try { await unlink(cachePath); } catch { /* ok */ }
     }
   });
 });
